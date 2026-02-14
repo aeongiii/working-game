@@ -92,6 +92,11 @@ body {
   background: #f1f5f9;
 }
 
+.wg-cell.is-match {
+  background: rgba(var(--accent), 0.18);
+  border-color: rgba(var(--accent), 0.55);
+}
+
 .wg-metrics {
   margin-top: 12px;
   display: grid;
@@ -164,6 +169,12 @@ body {
   color: #1e293b;
   padding: 8px 10px;
   cursor: pointer;
+}
+
+.wg-note {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 @media (max-width: 880px) {
