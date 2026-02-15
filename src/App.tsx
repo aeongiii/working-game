@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GRID_COLS, GRID_ROWS, cloneGrid, createInitialGrid, findConnectedGroup, type Cell } from './game'
+import {
+  GRID_COLS,
+  GRID_ROWS,
+  MOBILE_GRID_COLS,
+  MOBILE_GRID_ROWS,
+  cloneGrid,
+  createInitialGrid,
+  findConnectedGroup,
+  type Cell,
+} from './game'
 
 const STORAGE_THEME_KEY = 'theme'
 const MISS_PENALTY = 2
@@ -19,16 +28,6 @@ const DIFFICULTIES = {
 
 type Difficulty = keyof typeof DIFFICULTIES
 type GamePhase = 'ready' | 'running' | 'paused' | 'ended'
-
-const COLUMN_LABELS = Array.from({ length: GRID_COLS }, (_, index) =>
-  String.fromCharCode(65 + index),
-)
-
-function toAddress(index: number) {
-  const row = Math.floor(index / GRID_COLS) + 1
-  const col = COLUMN_LABELS[index % GRID_COLS] ?? 'A'
-  return `${col}${row}`
-}
 
 function toClock(ms: number) {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
@@ -115,6 +114,9 @@ function Header({
 
 function Grid({
   cells,
+  rows,
+  cols,
+  columnLabels,
   hiddenMode,
   previewIndices,
   activeIndex,
@@ -123,6 +125,9 @@ function Grid({
   onCellLeave,
 }: {
   cells: Cell[]
+  rows: number
+  cols: number
+  columnLabels: string[]
   hiddenMode: boolean
   previewIndices: Set<number>
   activeIndex: number
@@ -132,20 +137,20 @@ function Grid({
 }) {
   return (
     <section className="wg-grid-wrap" aria-label="number grid">
-      <div className="wg-grid">
+      <div className="wg-grid" style={{ ['--grid-cols' as string]: cols }}>
         <div className="wg-grid-top">
           <div className="wg-grid-corner" />
-          {COLUMN_LABELS.map((label) => (
+          {columnLabels.map((label) => (
             <div key={label} className="wg-col-header">
               {label}
             </div>
           ))}
         </div>
-        {Array.from({ length: GRID_ROWS }, (_, row) => (
+        {Array.from({ length: rows }, (_, row) => (
           <div key={`r-${row}`} className="wg-grid-row">
             <div className="wg-row-header">{row + 1}</div>
-            {Array.from({ length: GRID_COLS }, (_, col) => {
-              const index = row * GRID_COLS + col
+            {Array.from({ length: cols }, (_, col) => {
+              const index = row * cols + col
               const cell = cells[index]
               const displayValue = hiddenMode ? '0' : cell.value ?? ''
               const isPreview = previewIndices.has(index)
@@ -211,7 +216,16 @@ function SheetBar({
 }
 
 function App() {
-  const [cells, setCells] = useState<Cell[]>(() => createInitialGrid())
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 900px)').matches)
+  const rows = isMobile ? MOBILE_GRID_ROWS : GRID_ROWS
+  const cols = isMobile ? MOBILE_GRID_COLS : GRID_COLS
+
+  const columnLabels = useMemo(
+    () => Array.from({ length: cols }, (_, index) => String.fromCharCode(65 + index)),
+    [cols],
+  )
+
+  const [cells, setCells] = useState<Cell[]>(() => createInitialGrid(rows, cols))
   const [score, setScore] = useState(0)
   const [clickCount, setClickCount] = useState(0)
   const [clearCount, setClearCount] = useState(0)
@@ -226,8 +240,32 @@ function App() {
     return localStorage.getItem(STORAGE_THEME_KEY) ?? THEMES[0].value
   })
 
-  const activeAddress = useMemo(() => toAddress(activeIndex), [activeIndex])
+  const activeAddress = useMemo(() => {
+    const row = Math.floor(activeIndex / cols) + 1
+    const col = columnLabels[activeIndex % cols] ?? 'A'
+    return `${col}${row}`
+  }, [activeIndex, cols, columnLabels])
+
   const isRoundOver = phase === 'ended'
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 900px)')
+    const handler = (event: MediaQueryListEvent) => setIsMobile(event.matches)
+    media.addEventListener('change', handler)
+    return () => media.removeEventListener('change', handler)
+  }, [])
+
+  useEffect(() => {
+    setCells(createInitialGrid(rows, cols))
+    setScore(0)
+    setClickCount(0)
+    setClearCount(0)
+    setActiveIndex(0)
+    setHiddenMode(false)
+    setPreviewIndices(new Set())
+    setPhase('ready')
+    setTimeLeftMs(DIFFICULTIES[difficulty].roundMs)
+  }, [rows, cols])
 
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', theme)
@@ -253,7 +291,7 @@ function App() {
 
       if (event.code === 'Space' && isRoundOver) {
         event.preventDefault()
-        setCells(createInitialGrid())
+        setCells(createInitialGrid(rows, cols))
         setScore(0)
         setClickCount(0)
         setClearCount(0)
@@ -266,7 +304,7 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isRoundOver, lockedDifficulty])
+  }, [isRoundOver, lockedDifficulty, rows, cols])
 
   useEffect(() => {
     if (hiddenMode || phase !== 'running') {
@@ -293,7 +331,7 @@ function App() {
       return
     }
 
-    const group = findConnectedGroup(cells, index)
+    const group = findConnectedGroup(cells, index, rows, cols)
     if (group.length >= 3) {
       setPreviewIndices(new Set(group))
       return
@@ -319,7 +357,7 @@ function App() {
       return
     }
 
-    const group = findConnectedGroup(cells, index)
+    const group = findConnectedGroup(cells, index, rows, cols)
     if (group.length < 3) {
       setScore((prev) => Math.max(0, prev - MISS_PENALTY))
       return
@@ -339,7 +377,7 @@ function App() {
 
   const startGame = () => {
     setLockedDifficulty(difficulty)
-    setCells(createInitialGrid())
+    setCells(createInitialGrid(rows, cols))
     setScore(0)
     setClickCount(0)
     setClearCount(0)
@@ -351,7 +389,7 @@ function App() {
   }
 
   const restart = () => {
-    setCells(createInitialGrid())
+    setCells(createInitialGrid(rows, cols))
     setScore(0)
     setClickCount(0)
     setClearCount(0)
@@ -377,6 +415,9 @@ function App() {
       <Header activeAddress={activeAddress} hiddenMode={hiddenMode} />
       <Grid
         cells={cells}
+        rows={rows}
+        cols={cols}
+        columnLabels={columnLabels}
         hiddenMode={hiddenMode}
         previewIndices={previewIndices}
         activeIndex={activeIndex}
