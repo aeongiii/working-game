@@ -25,27 +25,61 @@ const COLUMN_LABELS = Array.from({ length: GRID_COLS }, (_, index) =>
   String.fromCharCode(65 + index),
 )
 
-function Header() {
+function toAddress(index: number) {
+  const row = Math.floor(index / GRID_COLS) + 1
+  const col = COLUMN_LABELS[index % GRID_COLS] ?? 'A'
+  return `${col}${row}`
+}
+
+function Header({
+  activeAddress,
+  hiddenMode,
+}: {
+  activeAddress: string
+  hiddenMode: boolean
+}) {
   return (
     <header className="wg-header" aria-label="sheet chrome">
-      <div className="wg-titlebar">
-        <h1>Internal Sheet</h1>
-        <div className="saved-indicator" aria-label="saved">
-          Saved <span aria-hidden>●</span>
+      <div className="wg-appbar">
+        <div className="wg-app-left">
+          <div className="wg-doc-icon" aria-hidden>
+            ▦
+          </div>
+          <div className="wg-doc-title">제목 없는 스프레드시트</div>
+        </div>
+        <div className="wg-app-right">
+          <button type="button">공유</button>
+          <div className="wg-avatar">예은</div>
         </div>
       </div>
       <div className="wg-menubar">
-        <span>File</span>
-        <span>Edit</span>
-        <span>View</span>
-        <span>Insert</span>
-        <span>Format</span>
-        <span>Data</span>
+        <span>파일</span>
+        <span>수정</span>
+        <span>보기</span>
+        <span>삽입</span>
+        <span>서식</span>
+        <span>데이터</span>
+        <span>도구</span>
+        <span>도움말</span>
+      </div>
+      <div className="wg-toolbar">
+        <span className="tool">↶</span>
+        <span className="tool">↷</span>
+        <span className="divider" />
+        <span className="tool">100%</span>
+        <span className="divider" />
+        <span className="tool">B</span>
+        <span className="tool">I</span>
+        <span className="tool">U</span>
+        <span className="divider" />
+        <span className="tool">⋮</span>
       </div>
       <div className="wg-formula" aria-label="formula bar">
-        <div className="wg-namebox">B12</div>
+        <div className="wg-namebox">{activeAddress}</div>
         <div className="wg-fx">fx</div>
-        <div className="wg-formula-input">=SUM(C4:C7)</div>
+        <div className="wg-formula-input">
+          {hiddenMode ? '0' : "='기호를 입력하고 이름을 입력하여 사용자 스마트 칩을 삽입해 보세요.'"}
+        </div>
       </div>
     </header>
   )
@@ -55,6 +89,7 @@ function Grid({
   cells,
   hiddenMode,
   previewIndices,
+  activeIndex,
   onCellClick,
   onCellHover,
   onCellLeave,
@@ -62,6 +97,7 @@ function Grid({
   cells: Cell[]
   hiddenMode: boolean
   previewIndices: Set<number>
+  activeIndex: number
   onCellClick: (index: number) => void
   onCellHover: (index: number) => void
   onCellLeave: () => void
@@ -69,12 +105,14 @@ function Grid({
   return (
     <section className="wg-grid-wrap" aria-label="number grid">
       <div className="wg-grid">
-        <div className="wg-grid-corner" />
-        {COLUMN_LABELS.map((label) => (
-          <div key={label} className="wg-col-header">
-            {label}
-          </div>
-        ))}
+        <div className="wg-grid-top">
+          <div className="wg-grid-corner" />
+          {COLUMN_LABELS.map((label) => (
+            <div key={label} className="wg-col-header">
+              {label}
+            </div>
+          ))}
+        </div>
         {Array.from({ length: GRID_ROWS }, (_, row) => (
           <div key={`r-${row}`} className="wg-grid-row">
             <div className="wg-row-header">{row + 1}</div>
@@ -83,10 +121,11 @@ function Grid({
               const cell = cells[index]
               const displayValue = hiddenMode ? '0' : cell.value ?? ''
               const isPreview = previewIndices.has(index)
+              const isActive = activeIndex === index
               return (
                 <button
                   key={cell.id}
-                  className={`wg-cell ${isPreview ? 'is-match' : ''}`}
+                  className={`wg-cell ${isPreview ? 'is-match' : ''} ${isActive ? 'is-active' : ''}`}
                   type="button"
                   onClick={() => onCellClick(index)}
                   onMouseEnter={() => onCellHover(index)}
@@ -103,60 +142,42 @@ function Grid({
   )
 }
 
-function MetricsPanel({
+function SheetBar({
   score,
   clickCount,
   clearCount,
   hiddenMode,
+  theme,
+  onThemeChange,
 }: {
   score: number
   clickCount: number
   clearCount: number
   hiddenMode: boolean
+  theme: string
+  onThemeChange: (value: string) => void
 }) {
   const accuracy = clickCount === 0 ? 100 : Math.round((clearCount / clickCount) * 100)
-  const variance = Math.max(0, 100 - accuracy)
-
   return (
-    <section className="wg-metrics" aria-label="kpi panel">
-      <div>
-        <span>Accuracy</span>
-        <strong>{hiddenMode ? '--' : `${accuracy}%`}</strong>
+    <footer className="wg-sheetbar">
+      <div className="sheet-tabs">
+        <button type="button">+</button>
+        <button type="button" className="active">
+          시트1
+        </button>
       </div>
-      <div>
-        <span>Variance</span>
-        <strong>{hiddenMode ? '--' : `${variance}%`}</strong>
+      <div className="sheet-status">
+        <span>Accuracy {hiddenMode ? '--' : `${accuracy}%`}</span>
+        <span>Processing {hiddenMode ? '--' : score.toLocaleString()}</span>
+        <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
+          {THEMES.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
       </div>
-      <div>
-        <span>Processing</span>
-        <strong>{hiddenMode ? '--' : score.toLocaleString()}</strong>
-      </div>
-    </section>
-  )
-}
-
-function ThemeSelector({
-  theme,
-  onChange,
-}: {
-  theme: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <section className="wg-theme">
-      <label htmlFor="theme-selector">Accent</label>
-      <select
-        id="theme-selector"
-        value={theme}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {THEMES.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
-    </section>
+    </footer>
   )
 }
 
@@ -165,6 +186,7 @@ function App() {
   const [score, setScore] = useState(0)
   const [clickCount, setClickCount] = useState(0)
   const [clearCount, setClearCount] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(0)
   const [hiddenMode, setHiddenMode] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [previewIndices, setPreviewIndices] = useState<Set<number>>(new Set())
@@ -174,6 +196,7 @@ function App() {
   })
 
   const hasMatch = useMemo(() => hasAnyMatch(cells), [cells])
+  const activeAddress = useMemo(() => toAddress(activeIndex), [activeIndex])
 
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', theme)
@@ -220,11 +243,6 @@ function App() {
     return () => window.clearInterval(countdown)
   }, [hiddenMode, gameOver])
 
-  const filledCount = useMemo(
-    () => cells.reduce((count, cell) => count + (cell.value === null ? 0 : 1), 0),
-    [cells],
-  )
-
   const handleCellHover = (index: number) => {
     if (hiddenMode || gameOver) {
       return
@@ -247,7 +265,9 @@ function App() {
       return
     }
 
+    setActiveIndex(index)
     setClickCount((prev) => prev + 1)
+
     const value = cells[index].value
     if (value === null) {
       return
@@ -275,6 +295,7 @@ function App() {
     setScore(0)
     setClickCount(0)
     setClearCount(0)
+    setActiveIndex(0)
     setGameOver(false)
     setHiddenMode(false)
     setPreviewIndices(new Set())
@@ -283,34 +304,22 @@ function App() {
 
   return (
     <main className="wg-app">
-      <Header />
+      <Header activeAddress={activeAddress} hiddenMode={hiddenMode} />
       <Grid
         cells={cells}
         hiddenMode={hiddenMode}
         previewIndices={previewIndices}
+        activeIndex={activeIndex}
         onCellClick={handleCellClick}
         onCellHover={handleCellHover}
         onCellLeave={handleCellLeave}
       />
-      <MetricsPanel
-        score={score}
-        clickCount={clickCount}
-        clearCount={clearCount}
-        hiddenMode={hiddenMode}
-      />
-      <div className="wg-footer">
-        <ThemeSelector theme={theme} onChange={setTheme} />
-        <p className="wg-footer-stat">
-          Filled Cells: <strong>{filledCount}</strong> / {GRID_ROWS * GRID_COLS}
-        </p>
-        <p className="wg-footer-stat">
-          Sync ETA: <strong>{hiddenMode ? '--' : `${(nextTickMs / 1000).toFixed(1)}s`}</strong>
-        </p>
-      </div>
+      <div className="wg-runtime">{hiddenMode ? '숨김 모드' : `Auto Sync ${(
+        nextTickMs / 1000
+      ).toFixed(1)}s`}</div>
       {!gameOver && !hiddenMode && !hasMatch && (
-        <p className="wg-note">No valid group. Waiting for auto recalculation...</p>
+        <p className="wg-note">매칭 가능한 그룹이 없습니다. 자동 반영을 기다리는 중...</p>
       )}
-
       {gameOver && (
         <section className="wg-gameover" role="alertdialog" aria-label="game over">
           <h2>Recalculation Failed</h2>
@@ -319,6 +328,14 @@ function App() {
           </button>
         </section>
       )}
+      <SheetBar
+        score={score}
+        clickCount={clickCount}
+        clearCount={clearCount}
+        hiddenMode={hiddenMode}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
     </main>
   )
 }
