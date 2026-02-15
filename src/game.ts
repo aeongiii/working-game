@@ -5,7 +5,7 @@ export type Cell = {
   value: number | null
 }
 
-export const GRID_ROWS = 12
+export const GRID_ROWS = 35
 export const GRID_COLS = 16
 export const MIN_VALUE = 1
 export const MAX_VALUE = 9
@@ -113,12 +113,10 @@ function injectGuaranteedMatch(grid: Cell[]) {
 }
 
 export function createInitialGrid() {
-  const fillRate = randomInt(70, 80) / 100
   const grid: Cell[] = []
   for (let row = 0; row < GRID_ROWS; row += 1) {
     for (let col = 0; col < GRID_COLS; col += 1) {
-      const shouldFill = Math.random() < fillRate
-      const value = shouldFill ? randomInt(MIN_VALUE, MAX_VALUE) : null
+      const value = randomInt(MIN_VALUE, MAX_VALUE)
       grid.push(makeCell(row, col, value))
     }
   }
@@ -162,6 +160,51 @@ export function tickGrid(grid: Cell[]) {
     }
   }
   return next
+}
+
+function shuffle<T>(items: T[]) {
+  const next = [...items]
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = randomInt(0, i)
+    const tmp = next[i]
+    next[i] = next[j]
+    next[j] = tmp
+  }
+  return next
+}
+
+export function rearrangeGrid(grid: Cell[]) {
+  const filledValues = grid
+    .filter((cell) => cell.value !== null)
+    .map((cell) => cell.value as number)
+
+  if (filledValues.length === 0) {
+    return grid
+  }
+
+  const allIndices = Array.from({ length: grid.length }, (_, index) => index)
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const valuePool = shuffle(filledValues)
+    const targetIndices = shuffle(allIndices).slice(0, filledValues.length)
+    const targetSet = new Set(targetIndices)
+    const next = cloneGrid(grid)
+
+    let valueCursor = 0
+    for (let i = 0; i < next.length; i += 1) {
+      if (targetSet.has(i)) {
+        next[i].value = valuePool[valueCursor]
+        valueCursor += 1
+      } else {
+        next[i].value = null
+      }
+    }
+
+    if (hasAnyMatch(next)) {
+      return next
+    }
+  }
+
+  return injectGuaranteedMatch(cloneGrid(grid))
 }
 
 export function isGameOver(grid: Cell[]) {

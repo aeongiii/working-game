@@ -1,18 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  AUTO_ADD_MS,
-  GRID_COLS,
-  GRID_ROWS,
-  cloneGrid,
-  createInitialGrid,
-  findConnectedGroup,
-  hasAnyMatch,
-  isGameOver,
-  tickGrid,
-  type Cell,
-} from './game'
+import { GRID_COLS, GRID_ROWS, cloneGrid, createInitialGrid, findConnectedGroup, type Cell } from './game'
 
 const STORAGE_THEME_KEY = 'theme'
+const ROUND_MS = 60000
 
 const THEMES = [
   { label: 'Blue', value: '59 130 246' },
@@ -31,6 +21,22 @@ function toAddress(index: number) {
   return `${col}${row}`
 }
 
+function toClock(ms: number) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+  const min = Math.floor(totalSeconds / 60)
+  const sec = totalSeconds % 60
+  return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+function WorkingGameLogo() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="#5f6368" />
+      <path d="M8 8H16M8 12H16M8 16H12" fill="none" stroke="#5f6368" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function Header({
   activeAddress,
   hiddenMode,
@@ -42,14 +48,19 @@ function Header({
     <header className="wg-header" aria-label="sheet chrome">
       <div className="wg-appbar">
         <div className="wg-app-left">
-          <div className="wg-doc-icon" aria-hidden>
-            ▦
+          <div className="wg-doc-icon">
+            <WorkingGameLogo />
           </div>
           <div className="wg-doc-title">제목 없는 스프레드시트</div>
         </div>
         <div className="wg-app-right">
-          <button type="button">공유</button>
-          <div className="wg-avatar">예은</div>
+          <button type="button" className="wg-login-btn">
+            로그인
+          </button>
+          <button type="button" className="wg-profile-btn">
+            <span aria-hidden>◯</span>
+            프로필
+          </button>
         </div>
       </div>
       <div className="wg-menubar">
@@ -78,7 +89,7 @@ function Header({
         <div className="wg-namebox">{activeAddress}</div>
         <div className="wg-fx">fx</div>
         <div className="wg-formula-input">
-          {hiddenMode ? '0' : "='기호를 입력하고 이름을 입력하여 사용자 스마트 칩을 삽입해 보세요.'"}
+          {hiddenMode ? '0' : "='3개 이상 인접한 셀을 클릭해 제거하세요.'"}
         </div>
       </div>
     </header>
@@ -188,14 +199,13 @@ function App() {
   const [clearCount, setClearCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
   const [hiddenMode, setHiddenMode] = useState(false)
-  const [gameOver, setGameOver] = useState(false)
   const [previewIndices, setPreviewIndices] = useState<Set<number>>(new Set())
-  const [nextTickMs, setNextTickMs] = useState(AUTO_ADD_MS)
+  const [timeLeftMs, setTimeLeftMs] = useState(ROUND_MS)
   const [theme, setTheme] = useState<string>(() => {
     return localStorage.getItem(STORAGE_THEME_KEY) ?? THEMES[0].value
   })
 
-  const hasMatch = useMemo(() => hasAnyMatch(cells), [cells])
+  const isRoundOver = timeLeftMs <= 0
   const activeAddress = useMemo(() => toAddress(activeIndex), [activeIndex])
 
   useEffect(() => {
@@ -204,47 +214,43 @@ function App() {
   }, [theme])
 
   useEffect(() => {
-    setGameOver(isGameOver(cells))
-  }, [cells])
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'F9') {
         event.preventDefault()
         setHiddenMode((prev) => !prev)
+        return
+      }
+
+      if (event.code === 'Space' && isRoundOver) {
+        event.preventDefault()
+        setCells(createInitialGrid())
+        setScore(0)
+        setClickCount(0)
+        setClearCount(0)
+        setActiveIndex(0)
+        setHiddenMode(false)
+        setPreviewIndices(new Set())
+        setTimeLeftMs(ROUND_MS)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [isRoundOver])
 
   useEffect(() => {
-    if (hiddenMode || gameOver) {
+    if (hiddenMode || isRoundOver) {
       return
     }
 
     const timer = window.setInterval(() => {
-      setCells((prev) => tickGrid(prev))
-      setNextTickMs(AUTO_ADD_MS)
-    }, AUTO_ADD_MS)
-
-    return () => window.clearInterval(timer)
-  }, [hiddenMode, gameOver])
-
-  useEffect(() => {
-    if (hiddenMode || gameOver) {
-      return
-    }
-
-    const countdown = window.setInterval(() => {
-      setNextTickMs((prev) => (prev <= 100 ? AUTO_ADD_MS : prev - 100))
+      setTimeLeftMs((prev) => Math.max(0, prev - 100))
     }, 100)
 
-    return () => window.clearInterval(countdown)
-  }, [hiddenMode, gameOver])
+    return () => window.clearInterval(timer)
+  }, [hiddenMode, isRoundOver])
 
   const handleCellHover = (index: number) => {
-    if (hiddenMode || gameOver) {
+    if (hiddenMode || isRoundOver) {
       return
     }
 
@@ -261,7 +267,7 @@ function App() {
   }
 
   const handleCellClick = (index: number) => {
-    if (hiddenMode || gameOver) {
+    if (hiddenMode || isRoundOver) {
       return
     }
 
@@ -296,10 +302,9 @@ function App() {
     setClickCount(0)
     setClearCount(0)
     setActiveIndex(0)
-    setGameOver(false)
     setHiddenMode(false)
     setPreviewIndices(new Set())
-    setNextTickMs(AUTO_ADD_MS)
+    setTimeLeftMs(ROUND_MS)
   }
 
   return (
@@ -314,19 +319,15 @@ function App() {
         onCellHover={handleCellHover}
         onCellLeave={handleCellLeave}
       />
-      <div className="wg-runtime">{hiddenMode ? '숨김 모드' : `Auto Sync ${(
-        nextTickMs / 1000
-      ).toFixed(1)}s`}</div>
-      {!gameOver && !hiddenMode && !hasMatch && (
-        <p className="wg-note">매칭 가능한 그룹이 없습니다. 자동 반영을 기다리는 중...</p>
-      )}
-      {gameOver && (
-        <section className="wg-gameover" role="alertdialog" aria-label="game over">
-          <h2>Recalculation Failed</h2>
+      <div className="wg-runtime">{hiddenMode ? '숨김 모드' : `Session ${toClock(timeLeftMs)}`}</div>
+      {isRoundOver && (
+        <div className="wg-round-result" role="status">
+          <span>Processing {score.toLocaleString()}</span>
           <button type="button" onClick={restart}>
-            Restart?
+            retry
           </button>
-        </section>
+          <span>space</span>
+        </div>
       )}
       <SheetBar
         score={score}
