@@ -3,12 +3,12 @@ import {
   AUTO_ADD_MS,
   GRID_COLS,
   GRID_ROWS,
-  addRandomNumber,
   cloneGrid,
   createInitialGrid,
   findConnectedGroup,
   hasAnyMatch,
   isGameOver,
+  tickGrid,
   type Cell,
 } from './game'
 
@@ -141,6 +141,7 @@ function App() {
   const [hiddenMode, setHiddenMode] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [previewIndices, setPreviewIndices] = useState<Set<number>>(new Set())
+  const [nextTickMs, setNextTickMs] = useState(AUTO_ADD_MS)
   const [theme, setTheme] = useState<string>(() => {
     return localStorage.getItem(STORAGE_THEME_KEY) ?? THEMES[0].value
   })
@@ -173,10 +174,23 @@ function App() {
     }
 
     const timer = window.setInterval(() => {
-      setCells((prev) => addRandomNumber(prev))
+      setCells((prev) => tickGrid(prev))
+      setNextTickMs(AUTO_ADD_MS)
     }, AUTO_ADD_MS)
 
     return () => window.clearInterval(timer)
+  }, [hiddenMode, gameOver])
+
+  useEffect(() => {
+    if (hiddenMode || gameOver) {
+      return
+    }
+
+    const countdown = window.setInterval(() => {
+      setNextTickMs((prev) => (prev <= 100 ? AUTO_ADD_MS : prev - 100))
+    }, 100)
+
+    return () => window.clearInterval(countdown)
   }, [hiddenMode, gameOver])
 
   const filledCount = useMemo(
@@ -237,6 +251,7 @@ function App() {
     setGameOver(false)
     setHiddenMode(false)
     setPreviewIndices(new Set())
+    setNextTickMs(AUTO_ADD_MS)
   }
 
   return (
@@ -258,8 +273,11 @@ function App() {
       />
       <div className="wg-footer">
         <ThemeSelector theme={theme} onChange={setTheme} />
-        <p>
+        <p className="wg-footer-stat">
           Filled Cells: <strong>{filledCount}</strong> / {GRID_ROWS * GRID_COLS}
+        </p>
+        <p className="wg-footer-stat">
+          Sync ETA: <strong>{hiddenMode ? '--' : `${(nextTickMs / 1000).toFixed(1)}s`}</strong>
         </p>
       </div>
       {!gameOver && !hiddenMode && !hasMatch && (

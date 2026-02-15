@@ -132,6 +132,10 @@ body {
   font-size: 0.85rem;
 }
 
+.wg-footer-stat {
+  margin: 0;
+}
+
 .wg-theme {
   display: flex;
   align-items: center;

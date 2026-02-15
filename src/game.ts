@@ -144,6 +144,26 @@ export function addRandomNumber(grid: Cell[]) {
   return next
 }
 
+export function tickGrid(grid: Cell[]) {
+  let next = addRandomNumber(grid)
+  if (hasAnyMatch(next)) {
+    return next
+  }
+
+  // Keep filling a few more empty cells to reduce dead turns.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const withOneMore = addRandomNumber(next)
+    if (withOneMore === next) {
+      break
+    }
+    next = withOneMore
+    if (hasAnyMatch(next)) {
+      break
+    }
+  }
+  return next
+}
+
 export function isGameOver(grid: Cell[]) {
   const hasEmpty = grid.some((cell) => cell.value === null)
   return !hasEmpty && !hasAnyMatch(grid)
