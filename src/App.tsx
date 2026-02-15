@@ -21,12 +21,31 @@ const THEMES = [
   { label: 'Amber', value: '180 83 9' },
 ]
 
+const COLUMN_LABELS = Array.from({ length: GRID_COLS }, (_, index) =>
+  String.fromCharCode(65 + index),
+)
+
 function Header() {
   return (
-    <header className="wg-header">
-      <h1>Internal Sheet</h1>
-      <div className="saved-indicator" aria-label="saved">
-        Saved <span aria-hidden>●</span>
+    <header className="wg-header" aria-label="sheet chrome">
+      <div className="wg-titlebar">
+        <h1>Internal Sheet</h1>
+        <div className="saved-indicator" aria-label="saved">
+          Saved <span aria-hidden>●</span>
+        </div>
+      </div>
+      <div className="wg-menubar">
+        <span>File</span>
+        <span>Edit</span>
+        <span>View</span>
+        <span>Insert</span>
+        <span>Format</span>
+        <span>Data</span>
+      </div>
+      <div className="wg-formula" aria-label="formula bar">
+        <div className="wg-namebox">B12</div>
+        <div className="wg-fx">fx</div>
+        <div className="wg-formula-input">=SUM(C4:C7)</div>
       </div>
     </header>
   )
@@ -49,28 +68,36 @@ function Grid({
 }) {
   return (
     <section className="wg-grid-wrap" aria-label="number grid">
-      <div
-        className="wg-grid"
-        style={{
-          gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
-        }}
-      >
-        {cells.map((cell, index) => {
-          const displayValue = hiddenMode ? '0' : cell.value ?? ''
-          const isPreview = previewIndices.has(index)
-          return (
-            <button
-              key={cell.id}
-              className={`wg-cell ${isPreview ? 'is-match' : ''}`}
-              type="button"
-              onClick={() => onCellClick(index)}
-              onMouseEnter={() => onCellHover(index)}
-              onMouseLeave={onCellLeave}
-            >
-              {displayValue}
-            </button>
-          )
-        })}
+      <div className="wg-grid">
+        <div className="wg-grid-corner" />
+        {COLUMN_LABELS.map((label) => (
+          <div key={label} className="wg-col-header">
+            {label}
+          </div>
+        ))}
+        {Array.from({ length: GRID_ROWS }, (_, row) => (
+          <div key={`r-${row}`} className="wg-grid-row">
+            <div className="wg-row-header">{row + 1}</div>
+            {Array.from({ length: GRID_COLS }, (_, col) => {
+              const index = row * GRID_COLS + col
+              const cell = cells[index]
+              const displayValue = hiddenMode ? '0' : cell.value ?? ''
+              const isPreview = previewIndices.has(index)
+              return (
+                <button
+                  key={cell.id}
+                  className={`wg-cell ${isPreview ? 'is-match' : ''}`}
+                  type="button"
+                  onClick={() => onCellClick(index)}
+                  onMouseEnter={() => onCellHover(index)}
+                  onMouseLeave={onCellLeave}
+                >
+                  {displayValue}
+                </button>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </section>
   )
