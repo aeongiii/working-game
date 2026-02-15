@@ -5,6 +5,9 @@
   --accent: 26 115 232;
   --bg: #f1f3f4;
   --chrome: #f1f3f4;
+  --chrome-accent-soft: rgba(26, 115, 232, 0.08);
+  --chrome-accent-mid: rgba(26, 115, 232, 0.14);
+  --chrome-accent-strong: rgba(26, 115, 232, 0.2);
   --line: #dadce0;
   --line-dark: #c3c7cc;
   --text: #202124;
@@ -112,6 +115,7 @@ body {
   align-items: center;
   gap: 16px;
   font-size: 14px;
+  background: var(--chrome);
 }
 
 .wg-toolbar {
@@ -122,6 +126,7 @@ body {
   gap: 8px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+  background: var(--chrome);
 }
 
 .tool {
@@ -273,34 +278,114 @@ body {
 }
 
 .wg-runtime {
-  height: 22px;
+  min-height: 34px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0 10px;
-  font-size: 11px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
   color: var(--muted);
   border-top: 1px solid var(--line);
 }
 
+.wg-runtime-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wg-runtime-main .metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #374151;
+}
+
+.wg-runtime-main .metric strong {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wg-runtime-main .metric > span {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.wg-runtime-main .metric select {
+  height: 22px;
+  border: 1px solid var(--line-dark);
+  background: #fff;
+  color: #3c4043;
+  font-size: 11px;
+  padding: 0 6px;
+}
+
+.wg-start-btn {
+  height: 24px;
+  min-width: 56px;
+  border: 1px solid rgb(var(--accent));
+  border-radius: 6px;
+  background: rgb(var(--accent));
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.wg-start-btn:hover {
+  filter: brightness(0.96);
+}
+
+.wg-runtime-main .metric select:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.wg-runtime-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wg-runtime-controls select,
+.wg-runtime-controls button {
+  height: 24px;
+  border: 1px solid var(--line-dark);
+  background: #fff;
+  color: #3c4043;
+  font-size: 11px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+
+.wg-runtime-controls button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .wg-round-result {
-  height: 28px;
+  height: 30px;
   border-top: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
   padding: 0 10px;
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 12px;
+  color: #374151;
+  background: #fafbfc;
 }
 
 .wg-round-result button {
-  border: 1px solid var(--line-dark);
-  background: #f8f9fa;
-  color: #3c4043;
-  font-size: 11px;
-  padding: 3px 8px;
+  border: 1px solid #b9c7d6;
+  background: #eef4fb;
+  color: #1f3b5c;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
   cursor: pointer;
 }
 
@@ -331,8 +416,8 @@ body {
 }
 
 .sheet-tabs button.active {
-  color: #1a73e8;
-  border-bottom: 2px solid #1a73e8;
+  color: rgb(var(--accent));
+  border-bottom: 2px solid rgb(var(--accent));
   font-weight: 600;
 }
 
@@ -352,6 +437,11 @@ body {
   font-size: 11px;
 }
 
+.theme-label {
+  color: #4b5563;
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .wg-doc-title {
     font-size: 1rem;
@@ -365,5 +455,10 @@ body {
 
   .sheet-status span {
     display: none;
+  }
+
+  .wg-runtime {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

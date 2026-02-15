@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { GRID_COLS, GRID_ROWS, cloneGrid, createInitialGrid, findConnectedGroup, type Cell } from './game'
 
 const STORAGE_THEME_KEY = 'theme'
-const ROUND_MS = 60000
+const MISS_PENALTY = 2
 
 const THEMES = [
   { label: 'Blue', value: '59 130 246' },
@@ -10,6 +10,15 @@ const THEMES = [
   { label: 'Emerald', value: '5 150 105' },
   { label: 'Amber', value: '180 83 9' },
 ]
+
+const DIFFICULTIES = {
+  easy: { label: 'Easy', roundMs: 90000 },
+  normal: { label: 'Normal', roundMs: 60000 },
+  hard: { label: 'Hard', roundMs: 45000 },
+} as const
+
+type Difficulty = keyof typeof DIFFICULTIES
+type GamePhase = 'ready' | 'running' | 'paused' | 'ended'
 
 const COLUMN_LABELS = Array.from({ length: GRID_COLS }, (_, index) =>
   String.fromCharCode(65 + index),
@@ -26,6 +35,14 @@ function toClock(ms: number) {
   const min = Math.floor(totalSeconds / 60)
   const sec = totalSeconds % 60
   return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+function toRgba(rgb: string, alpha: number) {
+  const parts = rgb
+    .trim()
+    .split(/\s+/)
+    .map((item) => Number(item))
+  return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`
 }
 
 function WorkingGameLogo() {
@@ -180,6 +197,7 @@ function SheetBar({
       <div className="sheet-status">
         <span>Accuracy {hiddenMode ? '--' : `${accuracy}%`}</span>
         <span>Processing {hiddenMode ? '--' : score.toLocaleString()}</span>
+        <span className="theme-label">Theme</span>
         <select value={theme} onChange={(event) => onThemeChange(event.target.value)}>
           {THEMES.map((item) => (
             <option key={item.value} value={item.value}>
@@ -200,18 +218,30 @@ function App() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [hiddenMode, setHiddenMode] = useState(false)
   const [previewIndices, setPreviewIndices] = useState<Set<number>>(new Set())
-  const [timeLeftMs, setTimeLeftMs] = useState(ROUND_MS)
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [lockedDifficulty, setLockedDifficulty] = useState<Difficulty>('normal')
+  const [phase, setPhase] = useState<GamePhase>('ready')
+  const [timeLeftMs, setTimeLeftMs] = useState<number>(DIFFICULTIES.normal.roundMs)
   const [theme, setTheme] = useState<string>(() => {
     return localStorage.getItem(STORAGE_THEME_KEY) ?? THEMES[0].value
   })
 
-  const isRoundOver = timeLeftMs <= 0
   const activeAddress = useMemo(() => toAddress(activeIndex), [activeIndex])
+  const isRoundOver = phase === 'ended'
 
   useEffect(() => {
     document.documentElement.style.setProperty('--accent', theme)
+    document.documentElement.style.setProperty('--chrome-accent-soft', toRgba(theme, 0.08))
+    document.documentElement.style.setProperty('--chrome-accent-mid', toRgba(theme, 0.14))
+    document.documentElement.style.setProperty('--chrome-accent-strong', toRgba(theme, 0.2))
     localStorage.setItem(STORAGE_THEME_KEY, theme)
   }, [theme])
+
+  useEffect(() => {
+    if (phase === 'ready') {
+      setTimeLeftMs(DIFFICULTIES[difficulty].roundMs)
+    }
+  }, [difficulty, phase])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -230,27 +260,36 @@ function App() {
         setActiveIndex(0)
         setHiddenMode(false)
         setPreviewIndices(new Set())
-        setTimeLeftMs(ROUND_MS)
+        setTimeLeftMs(DIFFICULTIES[lockedDifficulty].roundMs)
+        setPhase('running')
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isRoundOver])
+  }, [isRoundOver, lockedDifficulty])
 
   useEffect(() => {
-    if (hiddenMode || isRoundOver) {
+    if (hiddenMode || phase !== 'running') {
       return
     }
 
     const timer = window.setInterval(() => {
-      setTimeLeftMs((prev) => Math.max(0, prev - 100))
+      setTimeLeftMs((prev) => {
+        const next = Math.max(0, prev - 100)
+        if (next === 0) {
+          setPhase('ended')
+        }
+        return next
+      })
     }, 100)
 
     return () => window.clearInterval(timer)
-  }, [hiddenMode, isRoundOver])
+  }, [hiddenMode, phase])
+
+  const canPlay = phase === 'running' && !hiddenMode
 
   const handleCellHover = (index: number) => {
-    if (hiddenMode || isRoundOver) {
+    if (!canPlay) {
       return
     }
 
@@ -267,7 +306,7 @@ function App() {
   }
 
   const handleCellClick = (index: number) => {
-    if (hiddenMode || isRoundOver) {
+    if (!canPlay) {
       return
     }
 
@@ -276,11 +315,13 @@ function App() {
 
     const value = cells[index].value
     if (value === null) {
+      setScore((prev) => Math.max(0, prev - MISS_PENALTY))
       return
     }
 
     const group = findConnectedGroup(cells, index)
     if (group.length < 3) {
+      setScore((prev) => Math.max(0, prev - MISS_PENALTY))
       return
     }
 
@@ -296,6 +337,19 @@ function App() {
     setClearCount((prev) => prev + 1)
   }
 
+  const startGame = () => {
+    setLockedDifficulty(difficulty)
+    setCells(createInitialGrid())
+    setScore(0)
+    setClickCount(0)
+    setClearCount(0)
+    setActiveIndex(0)
+    setHiddenMode(false)
+    setPreviewIndices(new Set())
+    setTimeLeftMs(DIFFICULTIES[difficulty].roundMs)
+    setPhase('running')
+  }
+
   const restart = () => {
     setCells(createInitialGrid())
     setScore(0)
@@ -304,7 +358,18 @@ function App() {
     setActiveIndex(0)
     setHiddenMode(false)
     setPreviewIndices(new Set())
-    setTimeLeftMs(ROUND_MS)
+    setTimeLeftMs(DIFFICULTIES[lockedDifficulty].roundMs)
+    setPhase('running')
+  }
+
+  const togglePause = () => {
+    if (phase === 'running') {
+      setPhase('paused')
+      return
+    }
+    if (phase === 'paused') {
+      setPhase('running')
+    }
   }
 
   return (
@@ -319,10 +384,50 @@ function App() {
         onCellHover={handleCellHover}
         onCellLeave={handleCellLeave}
       />
-      <div className="wg-runtime">{hiddenMode ? '숨김 모드' : `Session ${toClock(timeLeftMs)}`}</div>
+      <div className="wg-runtime">
+        <div className="wg-runtime-main">
+          <span className="metric">
+            <strong>Score</strong>
+            <span>{score.toLocaleString()}</span>
+          </span>
+          <span className="metric">
+            <strong>Time</strong>
+            <span>{toClock(timeLeftMs)}</span>
+          </span>
+          <span className="metric">
+            <strong>Mode</strong>
+            <select
+              value={phase === 'ready' ? difficulty : lockedDifficulty}
+              onChange={(event) => setDifficulty(event.target.value as Difficulty)}
+              disabled={phase !== 'ready'}
+            >
+              <option value="easy">easy</option>
+              <option value="normal">normal</option>
+              <option value="hard">hard</option>
+            </select>
+            {phase === 'ready' && (
+              <button type="button" className="wg-start-btn" onClick={startGame}>
+                start
+              </button>
+            )}
+          </span>
+        </div>
+        <div className="wg-runtime-controls">
+          {(phase === 'running' || phase === 'paused') && (
+            <>
+              <button type="button" onClick={togglePause}>
+                {phase === 'paused' ? 'resume' : 'pause'}
+              </button>
+              <button type="button" onClick={restart}>
+                retry
+              </button>
+            </>
+          )}
+        </div>
+      </div>
       {isRoundOver && (
         <div className="wg-round-result" role="status">
-          <span>Processing {score.toLocaleString()}</span>
+          <span>Final {score.toLocaleString()}</span>
           <button type="button" onClick={restart}>
             retry
           </button>
